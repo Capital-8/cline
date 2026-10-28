@@ -83,3 +83,17 @@ Searched `cline/cline` open+closed, 3-14 query variants per theme, viewed top bo
 
 ### Strategic note (issue-first motivation)
 Only #7413 carries real user pain in this symptom class, and fixing it means fixing the *legacy* `McpHub.connectToServer` orphaning (filter-without-close at :394 + no per-name single-flight), with the SDK single-flight (S1-S3) as the forward-looking twin. For the rest, motivation must come from deterministic concurrency tests that fail before / pass after (deferred-promise interleavings), not from linked reports.
+
+---
+
+## Appendix B: precision/recall probe (AST re-scan, 2026-10-28)
+
+Independent TS-compiler-API scan (source-order per function; local/Map-value/param-object/helper shapes), 611 vscode + 552 SDK files. **The regex pass missed real sites** — all spot-verified by reading source:
+
+- `apps/vscode/src/services/mcp/McpOAuthManager.ts:219-231 getOrCreateProvider` — the brief's example verbatim over a Map: `providers.get(key)` miss → `await migrateLegacySecrets` + `await getSettingsPath()` → `providers.set` :229. Duplicate OAuth providers, split token state.
+- `apps/vscode/src/core/context/context-tracking/FileContextTracker.ts:41-78 setupFileWatcher` — `has()` :43 → `await getCwd()` :47 → chokidar created, stored :77. Duplicate watchers, first orphaned.
+- Same file `:107-158 addFileToFileContextTracker` — local snapshot read → await → push → whole-file save; overlapping watcher callbacks lose entries (local-var shape, invisible to `this.*` regex).
+- `apps/vscode/src/core/ignore/ClineIgnoreController.ts:76ff loadClineIgnore` — reset `this.ignoreInstance` → await fs → helper mutates *current* instance; rapid watcher events merge stale+fresh patterns.
+- `sdk/packages/core/src/cloud/controller.ts:2716 resolveInnerSession` — guard on aliased `connection.innerSessionId` :2670 → awaits → subscribe+attach; duplicate `session.attach` across reconnect/Stop paths. (Aliased-object shape.)
+
+Score revision: regex raw-candidate precision ~5-9% confirmed (~15-20% incl. MAYBE); confirmed-set recall ~60-70% VSCode (6 of 10-11), ~75% SDK (3 of 4, with 250 low-score AST candidates unreviewed, so SDK recall is an upper bound). False negatives are systematic: **any shape where shared state is not a literal `this.field` in the same function text** — locals, Map values, param objects, files on disk, helper indirection, >25-line check-to-register distance. False positives were almost all the synchronously-stored-promise idiom, decidable only by reading the function.
