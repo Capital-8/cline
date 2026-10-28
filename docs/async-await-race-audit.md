@@ -63,3 +63,23 @@ Uniform fix idiom (matches existing correct code): store the promise **synchrono
 
 ## Pass 2 (not yet done)
 Cross-method/caller analysis for the Uncertain list; shared-state (module-level `let`, non-`this` maps); `apps/cli`, `apps/cline-hub`, webview UI; read-modify-write on files (StateManager flush, session/task stores) where the "shared state" is on disk; event-emitter re-entrancy. Scanner scripts: `/tmp/scan-vscode.mjs`, `/tmp/scan-sdk.mjs` (regenerable; crude brace tracking — expect false positives around nested closures).
+
+---
+
+## Appendix: GitHub-issue corroboration search (2026-10-28)
+
+Searched `cline/cline` open+closed, 3-14 query variants per theme, viewed top bodies. **Result: zero STRONG causal matches for any finding.** Honest implication: these races are (so far) silent — they need single-flight regression tests / synthetic repros as motivation, not issue links, except where noted.
+
+| Finding | Closest issue(s) | Verdict |
+|---|---|---|
+| S1/S2/S3 MCP dup-connect | [#7413](https://github.com/cline/cline/issues/7413) "MCP Servers launching thousands of instances until crash on windows" (open, 2025-11-11, v3.36.1, context7/filesystem stdio) | Symptom match only. **Different code/mechanism**: pre-SDK, reported against VSCode `McpHub`. Verified: legacy `connectToServer` (`apps/vscode/src/services/mcp/McpHub.ts:388,519,674`) removes-by-name at entry without closing the removed transport, spawns via `transport.start()`, registers by push — concurrent/duplicate calls orphan live stdio processes (a spawn-retry/onerror loop then amplifies to thousands). Sibling of S2/S3, worth its own fix, not evidence for the SDK race. |
+| S3 accumulation symptom | [#14622](https://github.com/cline/cline/issues/14622) CLI hub MCP processes accumulate (10 Serena instances) | **Different, self-identified cause**: hub `session.detach` never shuts down session runtimes. Not a connect race. |
+| S1 (URL MCP) | — | No issue describes duplicate URL/SSE MCP connections. |
+| V2 Codex OAuth | [#9567](https://github.com/cline/cline/issues/9567) OCA stale-token refresh loop (closed); [#13821](https://github.com/cline/cline/issues/13821) CLI refreshToken rotation breaks third-party probes | Adjacent mechanisms, wrong provider/mechanism. No openai-codex repeated-logout/`invalid_grant` issue exists. V2 has **no** user-report corroboration — unsurprising: it needs rotation + precise interleaving, presents as flaky one-off logout. |
+| V1 hooks after cancel | [#8190](https://github.com/cline/cline/issues/8190) TaskCancel hook fires twice; [#14962](https://github.com/cline/cline/issues/14962) TaskCancel never fires (CLI/Desktop); [#9937](https://github.com/cline/cline/issues/9937) hook abort wedges Resume state; [#7188](https://github.com/cline/cline/issues/7188) hooks re-run on resume | Cluster proves hook/cancel lifecycle is fragile and user-visible, but none reports a hook *executing despite* cancel (V1's symptom). Useful context, not corroboration. |
+| V3 workspace manager | [#5747](https://github.com/cline/cline/issues/5747) duplicate `/` vs `\\` paths in @-search; [#13384](https://github.com/cline/cline/issues/13384) ignored dirs in search | Deterministic path/filter bugs, not races. No match. |
+| V4 cloud dup turns | [#2350](https://github.com/cline/cline/issues/2350) duplicate API responses/fees (local, OpenRouter); [#14491](https://github.com/cline/cline/issues/14491) 2nd prompt before 1st starts fails the run | Duplication-adjacent, different surface/mechanism. No cloud duplicate-turn issue. |
+| V5/V6 browser/fetcher | — | Zero hits across 12 query variants. |
+
+### Strategic note (issue-first motivation)
+Only #7413 carries real user pain in this symptom class, and fixing it means fixing the *legacy* `McpHub.connectToServer` orphaning (filter-without-close at :394 + no per-name single-flight), with the SDK single-flight (S1-S3) as the forward-looking twin. For the rest, motivation must come from deterministic concurrency tests that fail before / pass after (deferred-promise interleavings), not from linked reports.
