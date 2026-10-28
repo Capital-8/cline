@@ -97,3 +97,14 @@ Independent TS-compiler-API scan (source-order per function; local/Map-value/par
 - `sdk/packages/core/src/cloud/controller.ts:2716 resolveInnerSession` — guard on aliased `connection.innerSessionId` :2670 → awaits → subscribe+attach; duplicate `session.attach` across reconnect/Stop paths. (Aliased-object shape.)
 
 Score revision: regex raw-candidate precision ~5-9% confirmed (~15-20% incl. MAYBE); confirmed-set recall ~60-70% VSCode (6 of 10-11), ~75% SDK (3 of 4, with 250 low-score AST candidates unreviewed, so SDK recall is an upper bound). False negatives are systematic: **any shape where shared state is not a literal `this.field` in the same function text** — locals, Map values, param objects, files on disk, helper indirection, >25-line check-to-register distance. False positives were almost all the synchronously-stored-promise idiom, decidable only by reading the function.
+
+---
+
+## Appendix C: stratified-sample prevalence estimate (AST-only, 2026-10-28)
+
+Frame: 2,598 async functions (AST, both scopes; candidate match 202 functions/308 instances). Random samples (sha256-ordered, seeds pos1/neg1): AST-positive 60 reviewed, AST-negative 80 reviewed.
+
+- Positives: 11/60 UNSAFE-CERTAIN (5 known, 6 new; 1 downgraded on spot-check) → AST precision ≈17% candidates (≈20% known sites incl. missed). New: `local-provider-registry.ts:713` (sync/async `ensureCustomProvidersLoaded` pair — `has()`→`await readModelsFile`→`add()`), `shared/remote-config/runtime.ts:149`, `sdk-cloud-session-coordinator.ts:873 pollTick` (no re-entry guard; sync `ensurePolling` shows intended idiom), `auth-service.ts:576` (unguarded OAuth IIFE), `McpHub.ts:1297` (=connectToServer race from reconcile entry).
+- Negatives: 4/80 unsafe (1 known overlap via imperfect matching, 3 missed-shape: file read-modify-write/create races) → recall ≈50-75% depending on how much unreviewed P2/P4 tail resembles head; 2 further AST-negative/intramethod-SAFE but intraclass-racy (whole-file overwrite) — direct evidence density rises at next tier.
+- Prevalence: ≈2.0% of async functions (95% CI ≈1.2-3.2%), ≈45-55 expected intramethod sites in frame; 22 confirmed to date ≈40-45% enumerated. Bounds assume random sampling (correct) but imperfect candidate↔frame matching (conservative) and reviewer reliability (spot-check downgraded 1/6 new).
+- Regex scanner retired as of this appendix: known-site capture 4-10/16, strictly dominated by AST on the same gold set.
