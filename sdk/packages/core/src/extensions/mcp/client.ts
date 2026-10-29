@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
+	collectMcpPages,
 	formatMcpTimeoutErrorMessage,
 	isMcpTimeoutConfigured,
 } from "@cline/shared";
@@ -362,15 +363,29 @@ class StdioMcpClient implements McpServerClient {
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
-		const result = (await this.request("tools/list")) as {
-			tools?: Array<{
-				name?: string;
-				description?: string;
-				inputSchema?: Record<string, unknown>;
-				_meta?: Record<string, unknown>;
-			}>;
+		type RawTool = {
+			name?: string;
+			description?: string;
+			inputSchema?: Record<string, unknown>;
+			_meta?: Record<string, unknown>;
 		};
-		return (result.tools ?? [])
+		// Follow every tools/list page in this same connection so a paginating
+		// server's later tools reach the catalog (MCP pagination utility).
+		const tools = await collectMcpPages<RawTool>({
+			serverName: this.registration.name,
+			method: "tools/list",
+			fetchPage: async (cursor) => {
+				const result = (await this.request(
+					"tools/list",
+					cursor === undefined ? undefined : { cursor },
+				)) as { tools?: RawTool[]; nextCursor?: unknown } | null | undefined;
+				return {
+					items: Array.isArray(result?.tools) ? result.tools : [],
+					nextCursor: result?.nextCursor,
+				};
+			},
+		});
+		return tools
 			.filter(
 				(
 					tool,
@@ -852,10 +867,20 @@ class SdkUrlMcpClient implements McpServerClient {
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
 		const client = await this.ensureConnectedClient();
 		try {
-			const result = await client.listTools(undefined, {
-				timeout: this.requestTimeoutMs,
+			// Follow every tools/list page in this same session so a paginating
+			// server's later tools reach the catalog (MCP pagination utility).
+			const tools = await collectMcpPages({
+				serverName: this.registration.name,
+				method: "tools/list",
+				fetchPage: async (cursor) => {
+					const result = await client.listTools(
+						cursor === undefined ? undefined : { cursor },
+						{ timeout: this.requestTimeoutMs },
+					);
+					return { items: result.tools, nextCursor: result.nextCursor };
+				},
 			});
-			return result.tools.map((tool) => ({
+			return tools.map((tool) => ({
 				name: tool.name,
 				description: tool.description,
 				inputSchema:

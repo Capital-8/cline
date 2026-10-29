@@ -1,4 +1,5 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import { collectMcpPages } from "@cline/shared"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
@@ -883,8 +884,21 @@ export class McpHub {
 				return []
 			}
 
-			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
-				timeout: resolveMcpServerTimeoutMs(connection.server.config),
+			// Follow every tools/list page (MCP pagination) so a paginating
+			// server's later tools reach the catalog.
+			const client = connection.client
+			const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+			const allTools = await collectMcpPages({
+				serverName,
+				method: "tools/list",
+				fetchPage: async (cursor) => {
+					const response = await client.request(
+						{ method: "tools/list", ...(cursor === undefined ? {} : { params: { cursor } }) },
+						ListToolsResultSchema,
+						{ timeout },
+					)
+					return { items: response?.tools || [], nextCursor: response?.nextCursor }
+				},
 			})
 
 			// Get autoApprove settings
@@ -894,7 +908,7 @@ export class McpHub {
 			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
 
 			// Mark tools as always allowed based on settings
-			const tools = (response?.tools || []).map((tool) => ({
+			const tools = allTools.map((tool) => ({
 				...tool,
 				autoApprove: autoApproveConfig.includes(tool.name),
 			}))
@@ -927,10 +941,20 @@ export class McpHub {
 				return []
 			}
 
-			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
-				timeout: resolveMcpServerTimeoutMs(connection.server.config),
+			const client = connection.client
+			const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+			return await collectMcpPages({
+				serverName,
+				method: "resources/list",
+				fetchPage: async (cursor) => {
+					const response = await client.request(
+						{ method: "resources/list", ...(cursor === undefined ? {} : { params: { cursor } }) },
+						ListResourcesResultSchema,
+						{ timeout },
+					)
+					return { items: response?.resources || [], nextCursor: response?.nextCursor }
+				},
 			})
-			return response?.resources || []
 		} catch (error) {
 			if (McpHub.isMethodNotFound(error)) {
 				return []
@@ -954,15 +978,20 @@ export class McpHub {
 				return []
 			}
 
-			const response = await connection.client.request(
-				{ method: "resources/templates/list" },
-				ListResourceTemplatesResultSchema,
-				{
-					timeout: resolveMcpServerTimeoutMs(connection.server.config),
+			const client = connection.client
+			const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+			return await collectMcpPages({
+				serverName,
+				method: "resources/templates/list",
+				fetchPage: async (cursor) => {
+					const response = await client.request(
+						{ method: "resources/templates/list", ...(cursor === undefined ? {} : { params: { cursor } }) },
+						ListResourceTemplatesResultSchema,
+						{ timeout },
+					)
+					return { items: response?.resourceTemplates || [], nextCursor: response?.nextCursor }
 				},
-			)
-
-			return response?.resourceTemplates || []
+			})
 		} catch (error) {
 			if (McpHub.isMethodNotFound(error)) {
 				return []
@@ -986,11 +1015,22 @@ export class McpHub {
 				return []
 			}
 
-			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
-				timeout: resolveMcpServerTimeoutMs(connection.server.config),
+			const client = connection.client
+			const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+			const prompts = await collectMcpPages({
+				serverName,
+				method: "prompts/list",
+				fetchPage: async (cursor) => {
+					const response = await client.request(
+						{ method: "prompts/list", ...(cursor === undefined ? {} : { params: { cursor } }) },
+						ListPromptsResultSchema,
+						{ timeout },
+					)
+					return { items: response?.prompts || [], nextCursor: response?.nextCursor }
+				},
 			})
 
-			return (response?.prompts || []).map((prompt) => ({
+			return prompts.map((prompt) => ({
 				name: prompt.name,
 				title: prompt.title,
 				description: prompt.description,

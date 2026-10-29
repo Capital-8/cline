@@ -1,13 +1,134 @@
 import { describe, expect, it } from "vitest";
 import {
 	clampMcpTimeoutSeconds,
+	collectMcpPages,
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	formatMcpTimeoutErrorMessage,
 	isMcpTimeoutConfigured,
+	MAX_MCP_LIST_PAGES,
 	MAX_MCP_TIMEOUT_SECONDS,
+	type McpListPage,
 	MIN_MCP_TIMEOUT_SECONDS,
 	resolveMcpTimeoutSeconds,
 } from "./mcp";
+
+describe("collectMcpPages", () => {
+	function pagedFetcher(pages: readonly McpListPage<string>[]) {
+		const cursors: Array<string | undefined> = [];
+		const byCursor = new Map<string | undefined, McpListPage<string>>();
+		let key: string | undefined;
+		for (const page of pages) {
+			byCursor.set(key, page);
+			key = typeof page.nextCursor === "string" ? page.nextCursor : undefined;
+		}
+		return {
+			cursors,
+			fetchPage: async (cursor: string | undefined) => {
+				cursors.push(cursor);
+				const page = byCursor.get(cursor);
+				if (!page) {
+					throw new Error(`unknown cursor ${String(cursor)}`);
+				}
+				return page;
+			},
+		};
+	}
+
+	it("returns a single page without sending a cursor", async () => {
+		const { cursors, fetchPage } = pagedFetcher([{ items: ["a", "b"] }]);
+		await expect(
+			collectMcpPages({ serverName: "s", method: "tools/list", fetchPage }),
+		).resolves.toEqual(["a", "b"]);
+		expect(cursors).toEqual([undefined]);
+	});
+
+	it("follows opaque cursors in order, including through empty pages", async () => {
+		const { cursors, fetchPage } = pagedFetcher([
+			{ items: ["a"], nextCursor: "opaque:/page+2?token=a%3Db" },
+			{ items: [], nextCursor: "opaque:/page+3?token=c%3Dd" },
+			{ items: ["b", "c"] },
+		]);
+		await expect(
+			collectMcpPages({ serverName: "s", method: "tools/list", fetchPage }),
+		).resolves.toEqual(["a", "b", "c"]);
+		expect(cursors).toEqual([
+			undefined,
+			"opaque:/page+2?token=a%3Db",
+			"opaque:/page+3?token=c%3Dd",
+		]);
+	});
+
+	it("treats null, non-string and empty cursors as the end of the list", async () => {
+		for (const nextCursor of [null, 0, "", {}, false]) {
+			const { cursors, fetchPage } = pagedFetcher([
+				{ items: ["a"], nextCursor },
+			]);
+			await expect(
+				collectMcpPages({ serverName: "s", method: "tools/list", fetchPage }),
+			).resolves.toEqual(["a"]);
+			expect(cursors).toEqual([undefined]);
+		}
+	});
+
+	it("rejects a cursor that does not advance", async () => {
+		const cursors: Array<string | undefined> = [];
+		const fetchPage = async (cursor: string | undefined) => {
+			cursors.push(cursor);
+			// Every page, including the one reached via c1, points at c1 again.
+			return { items: ["a"], nextCursor: "c1" };
+		};
+		await expect(
+			collectMcpPages({ serverName: "s", method: "tools/list", fetchPage }),
+		).rejects.toThrow(
+			'MCP server "s" returned a repeated tools/list cursor; stopping pagination.',
+		);
+		// The first cursor was followed once; the repeat was caught before a
+		// third request went out.
+		expect(cursors).toEqual([undefined, "c1"]);
+	});
+
+	it("rejects a multi-page cursor cycle rather than looping", async () => {
+		const requests: Array<string | undefined> = [];
+		const fetchPage = async (cursor: string | undefined) => {
+			requests.push(cursor);
+			// A -> B -> A -> B ...
+			return { items: ["x"], nextCursor: cursor === "A" ? "B" : "A" };
+		};
+		await expect(
+			collectMcpPages({ serverName: "s", method: "prompts/list", fetchPage }),
+		).rejects.toThrow("repeated prompts/list cursor");
+		expect(requests).toEqual([undefined, "A", "B"]);
+	});
+
+	it("stops after the page cap when a server never ends", async () => {
+		let n = 0;
+		const fetchPage = async () => ({ items: [n], nextCursor: `c${n++}` });
+		await expect(
+			collectMcpPages({
+				serverName: "s",
+				method: "resources/list",
+				fetchPage,
+				maxPages: 3,
+			}),
+		).rejects.toThrow(
+			'MCP server "s" returned more than 3 resources/list pages; stopping pagination.',
+		);
+		expect(n).toBe(3);
+		expect(MAX_MCP_LIST_PAGES).toBeGreaterThan(3);
+	});
+
+	it("propagates a later-page error instead of returning a partial list", async () => {
+		const fetchPage = async (cursor: string | undefined) => {
+			if (cursor === undefined) {
+				return { items: ["a"], nextCursor: "c1" };
+			}
+			throw new Error("later page failed");
+		};
+		await expect(
+			collectMcpPages({ serverName: "s", method: "tools/list", fetchPage }),
+		).rejects.toThrow("later page failed");
+	});
+});
 
 describe("resolveMcpTimeoutSeconds", () => {
 	it("returns the default for missing or non-numeric values", () => {
