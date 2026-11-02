@@ -13,24 +13,13 @@ export type AiSdkReasoning = NonNullable<CallSettings["reasoning"]>;
 
 /**
  * The model a request targets and, when known, the AI SDK adapter it goes
- * through. The adapter is only needed to fit a level to the model's
- * advertised effort ladder.
+ * through. The adapter is only needed to decide how a disable is sent to a
+ * model the catalog does not describe.
  */
 export interface PortableReasoningWire {
 	adapter?: AiSdkProviderOptionsTarget;
 	context: GatewayProviderContext;
 }
-
-/**
- * Adapters that put the top-level `reasoning` value on the request unchanged
- * (`@ai-sdk/openai-compatible` sends it as `reasoning_effort`). The other
- * adapters translate the portable level through their own per-model effort
- * maps, so the gateway leaves the level to them.
- */
-const VERBATIM_REASONING_ADAPTERS = new Set<AiSdkProviderOptionsTarget>([
-	"cline",
-	"openai-compatible",
-]);
 
 const NON_PORTABLE_REASONING_PROVIDERS = new Set([
 	"claude-code",
@@ -41,19 +30,19 @@ const NON_PORTABLE_REASONING_PROVIDERS = new Set([
 ]);
 
 /**
- * Snap a level to the model's advertised effort ladder when the adapter sends
- * it verbatim, since endpoints reject levels outside their ladder.
+ * Snap a level to the model's advertised effort ladder, since endpoints
+ * reject levels outside it. This applies to every adapter: the ones that
+ * forward the level verbatim (`@ai-sdk/openai-compatible` sends it as
+ * `reasoning_effort`, `@ai-sdk/openai` as `reasoning.effort`) would otherwise
+ * send a value the model rejects, and the ones that map the level per model
+ * themselves then start from a level the catalog says the model accepts. A
+ * model without an advertised ladder keeps the requested level.
  */
 function snapToAdvertisedEffort(
 	level: AiSdkReasoning,
 	wire: PortableReasoningWire,
 ): AiSdkReasoning {
-	if (
-		level === "none" ||
-		level === "provider-default" ||
-		!wire.adapter ||
-		!VERBATIM_REASONING_ADAPTERS.has(wire.adapter)
-	) {
+	if (level === "none" || level === "provider-default") {
 		return level;
 	}
 	const efforts = getModelReasoningControls(

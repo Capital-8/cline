@@ -138,7 +138,10 @@ describe("resolvePortableReasoning", () => {
 
 	it("adds portable reasoning to supported provider stream settings", () => {
 		expect(
-			buildAiSdkStreamConfig(request({ effort: "high" }), undefined as never),
+			buildAiSdkStreamConfig(
+				request({ effort: "high" }),
+				wire("anthropic", undefined).context,
+			),
 		).toMatchObject({ reasoning: "high" });
 	});
 
@@ -148,13 +151,16 @@ describe("resolvePortableReasoning", () => {
 			providerId: "ollama",
 		};
 		expect(
-			buildAiSdkStreamConfig(ollamaRequest, undefined as never),
+			buildAiSdkStreamConfig(
+				ollamaRequest,
+				wire("openai-compatible", undefined).context,
+			),
 		).toHaveProperty("reasoning", "high");
 	});
 });
 
 function wire(
-	adapter: "cline" | "openai-compatible" | "anthropic",
+	adapter: "cline" | "openai-compatible" | "openai" | "anthropic",
 	reasoningOptions: readonly ModelReasoningOption[] | undefined,
 ) {
 	return {
@@ -207,13 +213,44 @@ describe("resolvePortableReasoning against an advertised effort ladder", () => {
 		).toBe("xhigh");
 	});
 
-	it("leaves the level to adapters that map effort per model themselves", () => {
+	it("snaps for adapters that map effort per model themselves", () => {
 		expect(
 			resolvePortableReasoning(
 				request({ effort: "medium" }),
 				wire("anthropic", [{ type: "effort", values: ["low", "high"] }]),
 			),
-		).toBe("medium");
+		).toBe("high");
+	});
+
+	it("sends native OpenAI models whose ladder stops at xhigh that level for max", () => {
+		// GPT-5.4's catalog ladder. The OpenAI adapter forwards the level
+		// unchanged for every model but the GPT-6 Sol/Luna family.
+		expect(
+			resolvePortableReasoning(
+				{ ...request({ effort: "max" }), providerId: "openai-native" },
+				wire("openai", [
+					{
+						type: "effort",
+						values: ["none", "low", "medium", "high", "xhigh"],
+					},
+				]),
+			),
+		).toBe("xhigh");
+	});
+
+	it("sends native OpenAI models that advertise max that level", () => {
+		// GPT-6.1 Sol's catalog ladder.
+		expect(
+			resolvePortableReasoning(
+				{ ...request({ effort: "max" }), providerId: "openai-native" },
+				wire("openai", [
+					{
+						type: "effort",
+						values: ["low", "medium", "high", "xhigh", "max"],
+					},
+				]),
+			),
+		).toBe("max");
 	});
 
 	it.each([
