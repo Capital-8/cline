@@ -130,6 +130,7 @@ const hubRuntimeMocks = vi.hoisted(() => ({
 const telemetryMocks = vi.hoisted(() => ({
 	captureCliExtensionActivated: vi.fn(),
 	identifyTelemetryAccount: vi.fn(),
+	persistEnvTelemetryOptOut: vi.fn(),
 	getCliTelemetryService: vi.fn(),
 	disposeCliTelemetryService: vi.fn(async () => {}),
 }));

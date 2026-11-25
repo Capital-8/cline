@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { readGlobalSettings, setTelemetryOptOutGlobally } from "@cline/core"
+import { isTelemetryOptedOutGlobally, setTelemetryOptOutGlobally } from "@cline/core"
 import { resolveGlobalSettingsPath } from "@cline/shared/storage"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Logger } from "@/shared/services/Logger"
@@ -11,7 +11,7 @@ interface TelemetryStateManager {
 }
 
 export function telemetrySettingFromSharedGlobalSettings(): TelemetrySetting {
-	return readGlobalSettings().telemetryOptOut ? "disabled" : "enabled"
+	return isTelemetryOptedOutGlobally() ? "disabled" : "enabled"
 }
 
 function normalizeLegacyTelemetrySetting(value: TelemetrySetting | boolean | undefined): TelemetrySetting | undefined {

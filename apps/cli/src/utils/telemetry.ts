@@ -5,9 +5,12 @@ import {
 	createConfiguredTelemetryHandle,
 	type ITelemetryService,
 	identifyAccount,
+	readGlobalSettings,
 	registerDisposable,
+	setTelemetryOptOutGlobally,
 	TelemetryLoggerSink,
 } from "@cline/core";
+import { isTelemetryDisabledByEnv } from "@cline/shared";
 import { getCliBuildInfo } from "./common";
 import { identifyFeatureFlagsAccount } from "./feature-flags";
 import {
@@ -65,6 +68,23 @@ export function getCliTelemetryService(
 		telemetrySingleton.loggerAttached = true;
 	}
 	return telemetrySingleton.telemetry;
+}
+
+/**
+ * Saves an environment opt-out (`DO_NOT_TRACK`, `CLINE_TELEMETRY_DISABLED`)
+ * to the shared setting. A hub daemon that is already running never sees
+ * this process's environment, but it re-checks the setting before every
+ * export, so saving it is what makes the opt-out reach that daemon too.
+ */
+export function persistEnvTelemetryOptOut(): void {
+	if (!isTelemetryDisabledByEnv() || readGlobalSettings().telemetryOptOut) {
+		return;
+	}
+	try {
+		setTelemetryOptOutGlobally(true);
+	} catch {
+		// Read-only config dir: this process still honors the environment.
+	}
 }
 
 export async function disposeCliTelemetryService(): Promise<void> {

@@ -279,18 +279,24 @@ function readTraceSamplePercent(): number {
 
 /**
  * The user's global telemetry opt-out (shared settings file written by the
- * extension/CLI settings flows). Spans bypass the ITelemetryService wrapper
- * that enforces opt-out for events and metrics, so the relay path re-checks
- * the setting per stream — which also honors mid-session opt-outs. The
- * direct Langfuse path is intentionally not gated here: it only activates
- * on explicit operator-supplied credentials.
+ * extension/CLI settings flows, or `DO_NOT_TRACK` in the environment). Spans
+ * bypass the ITelemetryService wrapper that enforces opt-out for events and
+ * metrics, so the relay path re-checks the setting per stream — which also
+ * honors mid-session opt-outs. The direct Langfuse path is intentionally not
+ * gated here: it only activates on explicit operator-supplied credentials.
  */
 async function isTelemetryOptedOutGlobally(): Promise<boolean> {
 	let raw: string;
 	try {
-		const [{ readFileSync }, { resolveGlobalSettingsPath }] = await Promise.all(
-			[import("node:fs"), import("@cline/shared/storage")],
-		);
+		const [{ readFileSync }, { resolveGlobalSettingsPath }, shared] =
+			await Promise.all([
+				import("node:fs"),
+				import("@cline/shared/storage"),
+				import("@cline/shared"),
+			]);
+		if (shared.isTelemetryDisabledByEnv()) {
+			return true;
+		}
 		raw = readFileSync(resolveGlobalSettingsPath(), "utf8");
 	} catch (error) {
 		// A genuinely absent file means no opt-out was ever recorded (first

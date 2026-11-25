@@ -7,6 +7,7 @@ import {
 	GlobalSettingsSchema,
 	isAgentPluginDisabledGlobally,
 	isModelToolEnabledGlobally,
+	isTelemetryOptedOutGlobally,
 	readCloudModelIdGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
@@ -214,6 +215,28 @@ describe("global-settings", () => {
 			process.env.CLINE_GLOBAL_SETTINGS_PATH = root;
 			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
 		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("treats DO_NOT_TRACK as a telemetry opt-out without changing the saved setting", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+				root,
+				"global-settings.json",
+			);
+			expect(isTelemetryOptedOutGlobally()).toBe(false);
+
+			vi.stubEnv("DO_NOT_TRACK", "1");
+			expect(isTelemetryOptedOutGlobally()).toBe(true);
+			expect(readGlobalSettings().telemetryOptOut).toBe(false);
+
+			vi.stubEnv("DO_NOT_TRACK", "0");
+			vi.stubEnv("CLINE_TELEMETRY_DISABLED", "true");
+			expect(isTelemetryOptedOutGlobally()).toBe(true);
+		} finally {
+			vi.unstubAllEnvs();
 			await rm(root, { recursive: true, force: true });
 		}
 	});

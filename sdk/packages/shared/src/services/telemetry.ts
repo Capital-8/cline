@@ -500,6 +500,18 @@ export function isOtlpTraceRelayProvider(provider: unknown): boolean {
 	);
 }
 
+/**
+ * True when the environment asks for no telemetry: the cross-tool
+ * `DO_NOT_TRACK` convention or Cline's own `CLINE_TELEMETRY_DISABLED`.
+ */
+export function isTelemetryDisabledByEnv(): boolean {
+	const env = typeof process === "undefined" ? undefined : process.env;
+	return [env?.DO_NOT_TRACK, env?.CLINE_TELEMETRY_DISABLED].some((raw) => {
+		const value = raw?.trim().toLowerCase();
+		return !!value && value !== "0" && value !== "false";
+	});
+}
+
 export interface OpenTelemetryClientConfig {
 	/**
 	 * Whether telemetry is enabled via OTEL_TELEMETRY_ENABLED

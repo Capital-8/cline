@@ -582,6 +582,7 @@ export {
 	captureSdkError,
 	captureTaskLifecycleEvent,
 	isOtlpTraceRelayProvider,
+	isTelemetryDisabledByEnv,
 	markOtlpTraceRelayProvider,
 	normalizeSdkError,
 	OTLP_TRACE_RELAY_MARKER,

@@ -61,6 +61,7 @@ import {
 	captureCliExtensionActivated,
 	getCliTelemetryService,
 	identifyTelemetryAccount,
+	persistEnvTelemetryOptOut,
 } from "./utils/telemetry";
 import type { Config } from "./utils/types";
 
@@ -161,6 +162,7 @@ export async function runCli(): Promise<void> {
 		setClineDir(configDir);
 	}
 	setHomeDir(homedir());
+	persistEnvTelemetryOptOut();
 
 	// Capture activation telemetry only after config/home directory selection
 	// has been applied, so the telemetry singleton's persisted distinct-id

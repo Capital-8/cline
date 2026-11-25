@@ -6,6 +6,7 @@ import {
 	CONFIGURABLE_MODEL_TOOL_NAMES,
 	type ConfigurableModelToolName,
 	type ITelemetryService,
+	isTelemetryDisabledByEnv,
 	type ModelToolSettings,
 } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
@@ -237,8 +238,9 @@ export function writeGlobalSettings(
 	invalidateSettingsCache();
 }
 
+/** The saved setting, or an environment opt-out (`DO_NOT_TRACK`). */
 export function isTelemetryOptedOutGlobally(): boolean {
-	return readGlobalSettings().telemetryOptOut;
+	return isTelemetryDisabledByEnv() || readGlobalSettings().telemetryOptOut;
 }
 
 export function setTelemetryOptOutGlobally(
