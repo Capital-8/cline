@@ -379,8 +379,19 @@ Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_A
 - `CLINE_LOG_NAME` - Logger name embedded in runtime log records
 - `CLINE_DEBUG` - Set to `1`/`true` to print wrapper diagnostics (e.g. the CA bundle summary)
 - `CLINE_CLOUD_SESSIONS` - Set to `1`/`true` to enable the experimental Local/Cloud toggle (`Ctrl+O`) for running tasks in Cline Cloud sandboxes
+- `DO_NOT_TRACK`, `CLINE_TELEMETRY_DISABLED` - Set either to `1`/`true` to turn telemetry off (see [Telemetry](#telemetry))
 
 `--key` takes precedence over environment variables.
+
+## Telemetry
+
+The CLI sends usage and error telemetry by default. It doesn't include your code or prompts, except for requests to the Cline and ClinePass providers. To turn it off, do any of the following:
+
+- Run `/settings` in an interactive session and turn off **Telemetry** on the General tab.
+- Set `DO_NOT_TRACK=1` or `CLINE_TELEMETRY_DISABLED=1` in your environment. The CLI saves this as your setting, so telemetry stays off until you turn it back on in `/settings`.
+- Set `"telemetryOptOut": true` in `~/.cline/data/settings/global-settings.json`.
+
+The setting is shared with the Cline editor extensions and desktop app, and it takes effect immediately, including in the background hub. See [what telemetry collects](https://docs.cline.bot/enterprise-solutions/monitoring/telemetry) and the [privacy policy](https://cline.bot/privacy).
 
 ## Certificate trust
 

@@ -226,6 +226,10 @@ git diff origin/main | cline "Review these changes for issues"
 cline --json "List all TODO comments" | jq -r 'select(.type == "agent_event" and .event.text) | .event.text'
 ```
 
+## Telemetry
+
+Cline sends usage and error telemetry by default. It doesn't include your code or prompts, except for requests to the Cline and ClinePass providers. To turn it off, use the telemetry setting in any Cline product (they share one setting), or set `DO_NOT_TRACK=1` or `CLINE_TELEMETRY_DISABLED=1` in your environment. See [what telemetry collects and how to turn it off](https://docs.cline.bot/enterprise-solutions/monitoring/telemetry) and the [privacy policy](https://cline.bot/privacy).
+
 ## Contributing
 
 Start with the [Contributing Guide](CONTRIBUTING.md). Join our [Discord](https://discord.gg/cline) and head to the `#contributors` channel to connect with other contributors. Check our [careers page](https://cline.bot/join-us) for full-time roles.

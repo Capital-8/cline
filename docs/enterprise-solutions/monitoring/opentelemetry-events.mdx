@@ -54,7 +54,6 @@ Events related to user authentication, telemetry preferences, and extension life
 
 | Event | Description | Key Attributes |
 |-------|-------------|----------------|
-| `user.opt_out` | User explicitly opts out of telemetry | user_id, timestamp |
 | `user.opt_in` | User explicitly opts into telemetry | user_id, timestamp |
 | `user.telemetry_enabled` | Telemetry service enabled/initialization signal | enabled, timestamp |
 | `user.extension_activated` | Extension activation event | extension_version, host_type |
@@ -359,23 +358,17 @@ Most events include these standard attributes:
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `timestamp` | ISO 8601 | Event occurrence time |
-| `user_id` | string | Anonymized user identifier (when authenticated) |
+| `user_id` | string | Cline account ID (when signed in to a Cline account) |
 | `session_id` | string | Current session identifier |
 | `extension_version` | string | Cline extension version |
 | `host_type` | string | vscode, jetbrains, or cli |
 
-### Privacy & Hashing
+### Privacy
 
-Sensitive information is hashed or anonymized:
-
-- **File paths**: Hashed to preserve privacy
-- **Command content**: Hashed, not logged verbatim
-- **User identifiers**: Anonymized tokens
-- **Branch names**: Hashed in worktree events
-
-<Warning>
-File paths, command arguments, and code content are **never** included in raw form. Only hashes or anonymized identifiers are used.
-</Warning>
+- **User identifiers**: Each installation has a device identifier, which is a hash of the operating system's machine ID or a random ID. When the user is signed in to a Cline account, events also carry the account ID, email address and organization identifiers as they are, not hashed.
+- **Prompts, code and file contents**: Not included, except in model request traces for the Cline and ClinePass providers. See [Code and prompts](/enterprise-solutions/monitoring/telemetry#code-and-prompts).
+- **Error messages**: Shortened, with access tokens and the user name in home directory paths removed. They can still contain other text from the failed operation, such as a file path.
+- **Git information**: For Cline and ClinePass requests in the VS Code and JetBrains extensions, `task.git_snapshot` records the branch name, commit ID, remote URL with any credentials removed, and whether there are uncommitted changes. These values are not hashed.
 
 ## Task Event Deep Dive
 
@@ -581,7 +574,7 @@ interface OtelLogEvent {
   </Card>
   
   <Card title="Respect Privacy" icon="shield">
-    Remember events are already anonymized. Don't attempt to de-anonymize.
+    Events can identify users and repositories. Limit who can read them.
   </Card>
 </CardGroup>
 

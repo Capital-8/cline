@@ -71,10 +71,10 @@ Conversation history includes **all tool inputs and outputs**. This means code w
 Files are uploaded to your bucket following this structure:
 
 ```
-s3://your-bucket/tasks/{taskId}/api_conversation_history.json
+s3://your-bucket/tasks/{userId}/{taskId}/api_conversation_history.json
 ```
 
-This mirrors the local storage structure, making it easy to correlate local and cloud data.
+`{userId}` identifies the member who ran the task: their Cline account ID when signed in, otherwise the device identifier.
 
 ## Configuration
 
