@@ -1,3 +1,4 @@
+import { markOtlpTraceRelayProvider } from "@cline/shared"
 import { ClineEndpoint } from "@/config"
 import {
 	getValidOpenTelemetryConfig,
@@ -79,10 +80,16 @@ export class TelemetryProviderFactory {
 				const client = new OpenTelemetryClientProvider(otelConfig)
 				try {
 					if (client.meterProvider || client.loggerProvider || client.tracerProvider) {
-						return await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+						const provider = new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
 							bypassUserSettings: config.bypassUserSettings,
 							client,
-						}).initialize()
+						})
+						if (client.tracerProvider) {
+							// Model-request traces relay through this tracer only while
+							// its provider is allowed to send, same as events and metrics.
+							markOtlpTraceRelayProvider(client.tracerProvider, () => provider.isEnabled())
+						}
+						return await provider.initialize()
 					}
 				} catch (error) {
 					await client.dispose()

@@ -469,7 +469,8 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Captures a required telemetry event that bypasses user opt-out settings
+	 * Captures a required telemetry event. Providers still drop it when the
+	 * user has turned telemetry off.
 	 * @param event The event name to capture
 	 * @param properties Optional properties to attach to the event
 	 */

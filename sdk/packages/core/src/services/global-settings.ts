@@ -5,13 +5,11 @@ import {
 	type AgentTool,
 	CONFIGURABLE_MODEL_TOOL_NAMES,
 	type ConfigurableModelToolName,
-	type ITelemetryService,
 	isTelemetryDisabledByEnv,
 	type ModelToolSettings,
 } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
-import { captureTelemetryOptOut } from "./telemetry/core-events";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
@@ -128,10 +126,6 @@ export const GlobalSettingsSchema = z
 
 export type GlobalSettings = z.infer<typeof GlobalSettingsSchema>;
 
-export interface WriteGlobalSettingsOptions {
-	telemetry?: ITelemetryService;
-}
-
 function defaultGlobalSettings(): GlobalSettings {
 	return GlobalSettingsSchema.parse({});
 }
@@ -225,15 +219,10 @@ export function readGlobalSettings(): GlobalSettings {
 
 export function writeGlobalSettings(
 	settings: z.input<typeof GlobalSettingsSchema>,
-	options: WriteGlobalSettingsOptions = {},
 ): void {
 	const filePath = resolveGlobalSettingsPath();
-	const previous = readGlobalSettings();
 	mkdirSync(dirname(filePath), { recursive: true });
 	const normalized = GlobalSettingsSchema.parse(settings);
-	if (!previous.telemetryOptOut && normalized.telemetryOptOut) {
-		captureTelemetryOptOut(options.telemetry);
-	}
 	writeFileSync(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
 	invalidateSettingsCache();
 }
@@ -243,34 +232,22 @@ export function isTelemetryOptedOutGlobally(): boolean {
 	return isTelemetryDisabledByEnv() || readGlobalSettings().telemetryOptOut;
 }
 
-export function setTelemetryOptOutGlobally(
-	telemetryOptOut: boolean,
-	options: WriteGlobalSettingsOptions = {},
-): void {
-	writeGlobalSettings(
-		{
-			...readGlobalSettings(),
-			telemetryOptOut,
-		},
-		options,
-	);
+export function setTelemetryOptOutGlobally(telemetryOptOut: boolean): void {
+	writeGlobalSettings({
+		...readGlobalSettings(),
+		telemetryOptOut,
+	});
 }
 
 export function isAutoUpdateEnabledGlobally(): boolean {
 	return readGlobalSettings().autoUpdateEnabled;
 }
 
-export function setAutoUpdateEnabledGlobally(
-	autoUpdateEnabled: boolean,
-	options: WriteGlobalSettingsOptions = {},
-): void {
-	writeGlobalSettings(
-		{
-			...readGlobalSettings(),
-			autoUpdateEnabled,
-		},
-		options,
-	);
+export function setAutoUpdateEnabledGlobally(autoUpdateEnabled: boolean): void {
+	writeGlobalSettings({
+		...readGlobalSettings(),
+		autoUpdateEnabled,
+	});
 }
 
 export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {

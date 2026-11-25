@@ -54,8 +54,8 @@ export interface ITelemetryProvider {
 	log(event: string, properties?: TelemetryProperties): void
 
 	/**
-	 * Log a required event that bypasses telemetry opt-out settings
-	 * Required events are critical for system health and error monitoring
+	 * Log a required event. Like every other event, it is dropped when the
+	 * user has turned telemetry off.
 	 * @param event The event name to log
 	 * @param properties Optional JSON-serializable properties to attach to the event
 	 */

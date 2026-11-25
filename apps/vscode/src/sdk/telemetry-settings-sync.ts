@@ -36,8 +36,6 @@ export function syncTelemetrySettingFromSharedGlobalSettings(stateManager: Telem
 				// One-time migration from the legacy VS Code globalState.json field into
 				// the CLI/shared global settings file. Older builds stored this as a
 				// boolean where false meant telemetry was disabled.
-				// Do not emit opt-out telemetry for migration; this is not a new explicit
-				// user action.
 				setTelemetryOptOutGlobally(legacyTelemetrySetting === "disabled")
 			}
 		}

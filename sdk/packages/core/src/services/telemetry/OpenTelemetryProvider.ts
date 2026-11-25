@@ -142,6 +142,12 @@ export interface OpenTelemetryProviderOptions
 	logMaxQueueSize?: number;
 	logBatchSize?: number;
 	logBatchTimeoutMs?: number;
+	/**
+	 * Checked before every OTLP export; while it returns false, batches are
+	 * dropped instead of sent. Enforces consent that changes while the process
+	 * runs at the point where data would leave the machine.
+	 */
+	shouldExport?: () => boolean;
 }
 
 export interface CreateOpenTelemetryTelemetryServiceOptions
@@ -272,6 +278,7 @@ export class OpenTelemetryProvider {
 					protocol: "http/json",
 					interval,
 					timeout,
+					shouldExport: this.options.shouldExport,
 				}),
 			)
 			.filter((reader): reader is MetricReader => reader !== null);
@@ -307,6 +314,7 @@ export class OpenTelemetryProvider {
 				headers: traceHeaders,
 				insecure: this.options.otlpInsecure ?? false,
 				protocol: "http/json",
+				shouldExport: this.options.shouldExport,
 			});
 			if (processor) {
 				processors.push(processor);
@@ -348,6 +356,7 @@ export class OpenTelemetryProvider {
 					headers: this.options.otlpHeaders,
 					insecure: this.options.otlpInsecure ?? false,
 					protocol: "http/json",
+					shouldExport: this.options.shouldExport,
 				});
 				if (!logExporter) {
 					return null;
@@ -429,7 +438,12 @@ export function createConfiguredTelemetryService(
 		};
 	}
 
-	return createOpenTelemetryTelemetryService(options);
+	return createOpenTelemetryTelemetryService({
+		...options,
+		// Re-checked per export so opting out stops a running process
+		// (including the long-lived hub daemon) without a restart.
+		shouldExport: () => !isTelemetryOptedOutGlobally(),
+	});
 }
 
 /**
@@ -519,6 +533,31 @@ function normalizeExporters(
 		);
 }
 
+type OtlpExporter = {
+	export(items: never, done: (result: { code: number }) => void): void;
+};
+
+function gateExporter<T extends OtlpExporter>(
+	exporter: T,
+	shouldExport?: () => boolean,
+): T {
+	if (!shouldExport) {
+		return exporter;
+	}
+	const send = exporter.export.bind(exporter) as (
+		...args: Parameters<T["export"]>
+	) => void;
+	exporter.export = ((...args: Parameters<T["export"]>) => {
+		if (shouldExport()) {
+			send(...args);
+		} else {
+			// ExportResultCode.SUCCESS: dropped by consent, not a failure to retry.
+			args[1]({ code: 0 });
+		}
+	}) as T["export"];
+	return exporter;
+}
+
 function createLogExporter(
 	exporter: OpenTelemetryExporterKind,
 	options: {
@@ -526,6 +565,7 @@ function createLogExporter(
 		headers?: Record<string, string>;
 		insecure: boolean;
 		protocol: OpenTelemetryProtocol;
+		shouldExport?: () => boolean;
 	},
 ): LogRecordExporter | null {
 	if (exporter === "console") {
@@ -536,10 +576,13 @@ function createLogExporter(
 	}
 
 	const endpoint = ensurePathSuffix(options.endpoint, "/v1/logs");
-	return new OTLPLogExporterHttp({
-		url: endpoint,
-		headers: options.headers,
-	});
+	return gateExporter(
+		new OTLPLogExporterHttp({
+			url: endpoint,
+			headers: options.headers,
+		}),
+		options.shouldExport,
+	);
 }
 
 function createSpanProcessor(
@@ -549,6 +592,7 @@ function createSpanProcessor(
 		headers?: Record<string, string>;
 		insecure: boolean;
 		protocol: OpenTelemetryProtocol;
+		shouldExport?: () => boolean;
 	},
 ): SpanProcessor | null {
 	if (exporter === "console") {
@@ -560,10 +604,13 @@ function createSpanProcessor(
 
 	const endpoint = ensurePathSuffix(options.endpoint, "/v1/traces");
 	return new BatchSpanProcessor(
-		new OTLPTraceExporter({
-			url: endpoint,
-			headers: options.headers,
-		}),
+		gateExporter(
+			new OTLPTraceExporter({
+				url: endpoint,
+				headers: options.headers,
+			}),
+			options.shouldExport,
+		),
 	);
 }
 
@@ -576,6 +623,7 @@ function createMetricReader(
 		protocol: OpenTelemetryProtocol;
 		interval: number;
 		timeout: number;
+		shouldExport?: () => boolean;
 	},
 ): MetricReader | null {
 	if (exporter === "console") {
@@ -591,10 +639,13 @@ function createMetricReader(
 
 	const endpoint = ensurePathSuffix(options.endpoint, "/v1/metrics");
 	return new PeriodicExportingMetricReader({
-		exporter: new OTLPMetricExporterHttp({
-			url: endpoint,
-			headers: options.headers,
-		}),
+		exporter: gateExporter(
+			new OTLPMetricExporterHttp({
+				url: endpoint,
+				headers: options.headers,
+			}),
+			options.shouldExport,
+		),
 		exportIntervalMillis: options.interval,
 		exportTimeoutMillis: options.timeout,
 	});

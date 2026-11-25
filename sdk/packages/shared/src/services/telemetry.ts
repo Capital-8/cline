@@ -488,16 +488,25 @@ function numberValue(value: unknown): number | undefined {
  */
 export const OTLP_TRACE_RELAY_MARKER = "_clineOtlpTraceRelay";
 
-export function markOtlpTraceRelayProvider(provider: object): void {
-	(provider as Record<string, unknown>)[OTLP_TRACE_RELAY_MARKER] = true;
+/**
+ * `isActive` lets the owner tie the relay to consent that can change while
+ * the process runs (e.g. the editor's telemetry setting): while it returns
+ * false the provider is not treated as a relay, so no spans are created.
+ */
+export function markOtlpTraceRelayProvider(
+	provider: object,
+	isActive?: () => boolean,
+): void {
+	(provider as Record<string, unknown>)[OTLP_TRACE_RELAY_MARKER] =
+		isActive ?? true;
 }
 
 export function isOtlpTraceRelayProvider(provider: unknown): boolean {
-	return (
-		!!provider &&
-		typeof provider === "object" &&
-		(provider as Record<string, unknown>)[OTLP_TRACE_RELAY_MARKER] === true
-	);
+	if (!provider || typeof provider !== "object") {
+		return false;
+	}
+	const marker = (provider as Record<string, unknown>)[OTLP_TRACE_RELAY_MARKER];
+	return typeof marker === "function" ? marker() === true : marker === true;
 }
 
 /**

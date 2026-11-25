@@ -127,8 +127,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public logRequired(event: string, properties?: TelemetryProperties): void {
-		// Required events always go through regardless of settings
-		if (this.logger) {
+		if (this.logger && this.isEnabled()) {
 			this.logger.emit({
 				severityText: "INFO",
 				body: event,
@@ -214,9 +213,9 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		value: number,
 		attributes?: TelemetryProperties,
 		description?: string,
-		required = false,
+		_required = false,
 	): void {
-		if (!this.meter || (!required && !this.isEnabled())) {
+		if (!this.meter || !this.isEnabled()) {
 			return
 		}
 
@@ -240,9 +239,9 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		value: number,
 		attributes?: TelemetryProperties,
 		description?: string,
-		required = false,
+		_required = false,
 	): void {
-		if (!this.meter || (!required && !this.isEnabled())) {
+		if (!this.meter || !this.isEnabled()) {
 			return
 		}
 
@@ -266,9 +265,9 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		value: number | null,
 		attributes?: TelemetryProperties,
 		description?: string,
-		required = false,
+		_required = false,
 	): void {
-		if (!this.meter || (!required && !this.isEnabled())) {
+		if (!this.meter || !this.isEnabled()) {
 			return
 		}
 

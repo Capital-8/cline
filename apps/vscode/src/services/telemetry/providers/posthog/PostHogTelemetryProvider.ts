@@ -91,6 +91,9 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public logRequired(event: string, properties?: TelemetryProperties): void {
+		if (!this.isEnabled()) {
+			return
+		}
 		this.client.capture({
 			distinctId: getDistinctId(),
 			event,
@@ -150,9 +153,9 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		value: number,
 		attributes?: TelemetryProperties,
 		_description?: string,
-		required = false,
+		_required = false,
 	): void {
-		if (!this.isEnabled() && !required) return
+		if (!this.isEnabled()) return
 
 		// Convert metric to event format for PostHog
 		// Most counters don't need individual events - they're aggregated in OpenTelemetry
@@ -188,9 +191,9 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		value: number | null,
 		attributes?: TelemetryProperties,
 		_description?: string,
-		required = false,
+		_required = false,
 	): void {
-		if ((!this.isEnabled() && !required) || value === null) return
+		if (!this.isEnabled() || value === null) return
 
 		// Convert gauge updates to state change events
 		if (name === "cline.workspace.active_roots") {

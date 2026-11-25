@@ -1,7 +1,6 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
@@ -237,31 +236,6 @@ describe("global-settings", () => {
 			expect(isTelemetryOptedOutGlobally()).toBe(true);
 		} finally {
 			vi.unstubAllEnvs();
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
-	it("records telemetry opt-out once when the setting changes to true", async () => {
-		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
-		try {
-			const settingsPath = join(root, "global-settings.json");
-			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
-			const captureRequired = vi.fn();
-			const telemetry = {
-				captureRequired,
-			} as unknown as ITelemetryService;
-
-			setTelemetryOptOutGlobally(true, { telemetry });
-			setTelemetryOptOutGlobally(true, { telemetry });
-			setTelemetryOptOutGlobally(false, { telemetry });
-
-			expect(captureRequired).toHaveBeenCalledTimes(1);
-			expect(captureRequired).toHaveBeenCalledWith("user.opt_out", undefined);
-			expect(readGlobalSettings()).toEqual({
-				autoUpdateEnabled: true,
-				telemetryOptOut: false,
-			});
-		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
 	});

@@ -26,7 +26,6 @@ import {
 	captureTaskCreated,
 	captureTaskLifecycleEvent,
 	captureTaskRestarted,
-	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
@@ -159,18 +158,6 @@ describe("captureGitSnapshot", () => {
 
 	test("no-ops when telemetry is undefined", () => {
 		expect(() => captureGitSnapshot(undefined, gitSnapshot)).not.toThrow();
-	});
-});
-
-describe("captureTelemetryOptOut", () => {
-	test("emits user.opt_out as a required event", () => {
-		const stub = createTelemetryStub();
-		captureTelemetryOptOut(stub.telemetry);
-		expect(stub.capture).not.toHaveBeenCalled();
-		expect(stub.captureRequired).toHaveBeenCalledWith(
-			"user.opt_out",
-			undefined,
-		);
 	});
 });
 

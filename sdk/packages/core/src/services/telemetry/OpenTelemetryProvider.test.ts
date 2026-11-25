@@ -1,4 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BasicLogger } from "@cline/shared";
@@ -233,6 +235,47 @@ describe("createOpenTelemetryTelemetryService", () => {
 			member_id: "member-1",
 		});
 		expect(logger.log).not.toHaveBeenCalled();
+	});
+
+	it("stops exporting as soon as the user opts out, without a restart", async () => {
+		const requests: string[] = [];
+		const server = createServer((request, response) => {
+			requests.push(request.url ?? "");
+			request.resume();
+			response.end("{}");
+		});
+		await new Promise<void>((resolve) =>
+			server.listen(0, "127.0.0.1", resolve),
+		);
+		const { port } = server.address() as AddressInfo;
+
+		const { telemetry, provider } = createConfiguredTelemetryService({
+			metadata: {
+				extension_version: "1.2.3",
+				cline_type: "cli",
+				platform: "terminal",
+				platform_version: process.version,
+				os_type: process.platform,
+				os_version: "unknown",
+			},
+			enabled: true,
+			logsExporter: "otlp",
+			otlpEndpoint: `http://127.0.0.1:${port}`,
+		});
+		try {
+			telemetry.capture({ event: "session.started" });
+			await provider?.forceFlush();
+			expect(requests).toEqual(["/v1/logs"]);
+
+			writeGlobalSettings({ telemetryOptOut: true });
+			telemetry.capture({ event: "session.started" });
+			telemetry.captureRequired("required.event");
+			await provider?.forceFlush();
+			expect(requests).toEqual(["/v1/logs"]);
+		} finally {
+			await provider?.dispose();
+			await new Promise((resolve) => server.close(resolve));
+		}
 	});
 
 	it("preserves metadata when disabled", () => {

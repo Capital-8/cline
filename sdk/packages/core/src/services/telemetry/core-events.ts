@@ -65,7 +65,6 @@ export const CORE_TELEMETRY_EVENTS = {
 		AUTH_REFRESH_SOFT_FAILURE: "user.auth_refresh_soft_failure",
 		AUTH_RUN_RETRY: "user.auth_run_retry",
 		PROVIDER_CONFIGURED: "user.provider_configured",
-		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
 	TASK: {
 		CREATED: "task.created",
@@ -413,16 +412,6 @@ export function captureProviderConfigured(
 	provider?: string,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.PROVIDER_CONFIGURED, { provider });
-}
-
-export function captureTelemetryOptOut(
-	telemetry: ITelemetryService | undefined,
-	properties?: TelemetryProperties,
-): void {
-	telemetry?.captureRequired(
-		CORE_TELEMETRY_EVENTS.USER.TELEMETRY_OPT_OUT,
-		properties,
-	);
 }
 
 export function identifyAccount(
